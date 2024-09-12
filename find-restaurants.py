@@ -7,14 +7,48 @@ import argparse
 import time
 import os
 import pickle
-from operator import itemgetter
-from urllib.parse import urlparse, urljoin
+from math import radians, cos, sin, sqrt, atan2, degrees
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse, urlunparse, urljoin
 
 SLEEP_TIME_SECS = 0.5
 DEFAULT_CENTER = 'Mustang, OK'
-
 CACHE_FILE = "places_cache.pkl"  # File to store cached place details
+EARTH_RADIUS_KM = 6371  # Approximate radius of Earth in kilometers
+
+# List of fast-food chains to exclude
+FAST_FOOD_CHAINS = [
+  "mcdonald", 
+  "mcdonalds", 
+  "mcdonald's", 
+  "kfc", 
+  "taco bell", 
+  "burger king", 
+  "wendys", 
+  "wendy's", 
+  "subway", 
+  "domino", 
+  "domino's", 
+  "pizzahut", 
+  "pizza hut",
+  "chipotle",
+  "whataburger",
+  "arbys",
+  "arby's",
+  "sonic drive-in",
+  "papa murphys",
+  "papa murphy's",
+  "starbucks",
+  "braums",
+  "braum's",
+  "chicken express",
+  "freddy's frozen custard",
+  "city bites",
+  "little ceasar's pizza",
+  "taco bueno",
+  "schlotzsky's",
+  "schlotzskys",
+]
 
 # Initialize or load cache
 def load_cache():
@@ -47,6 +81,25 @@ def get_lat_lng(address, api_key):
         return location['lat'], location['lng']
     return None
 
+# Function to calculate new lat/lng from a given bearing angle and distance
+def move_center(lat, lng, distance_km, bearing_angle):
+    # Convert latitude, longitude, and angle to radians
+    lat_rad = radians(lat)
+    lng_rad = radians(lng)
+    bearing_rad = radians(bearing_angle)
+
+    # Calculate the new latitude and longitude
+    new_lat = sin(lat_rad) * cos(distance_km / EARTH_RADIUS_KM) + \
+              cos(lat_rad) * sin(distance_km / EARTH_RADIUS_KM) * cos(bearing_rad)
+    new_lat = degrees(atan2(new_lat, sqrt(1 - new_lat ** 2)))  # Convert back to degrees
+
+    new_lng = lng_rad + atan2(sin(bearing_rad) * sin(distance_km / EARTH_RADIUS_KM) * cos(lat_rad),
+                              cos(distance_km / EARTH_RADIUS_KM) - sin(lat_rad) * sin(new_lat))
+    new_lng = degrees(new_lng)  # Convert back to degrees
+
+    print(f"Moving center to new lat/lng: {new_lat}, {new_lng} based on bearing {bearing_angle}° and distance {distance_km} km")
+    return new_lat, new_lng
+
 # Function to get restaurants from Google Places API (ranked by distance) with support for multiple batches
 def get_restaurants(location, api_key, num_results, batch_size=60, radius_increment=1000):
     all_restaurants = []
@@ -71,8 +124,11 @@ def get_restaurants(location, api_key, num_results, batch_size=60, radius_increm
             print(f"No more restaurants found in radius: {radius} meters.")
             break
 
+        # Filter out fast-food chains by name
+        filtered_restaurants = [r for r in restaurants if not any(chain.lower() in r['name'].lower() for chain in FAST_FOOD_CHAINS)]
+
         # Filter out duplicates by checking place_id
-        new_restaurants = [r for r in restaurants if r['place_id'] not in visited_place_ids]
+        new_restaurants = [r for r in filtered_restaurants if r['place_id'] not in visited_place_ids]
         
         # Track visited places to avoid duplicates
         visited_place_ids.update(r['place_id'] for r in new_restaurants)
@@ -97,14 +153,14 @@ def get_restaurants(location, api_key, num_results, batch_size=60, radius_increm
 def fetch_restaurants_in_radius(location, api_key, radius, num_results):
     restaurants = []
     url = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
-    
+
     params = {
         'location': f"{location[0]},{location[1]}",  # Latitude, Longitude
         'radius': radius,  # Use radius instead of rankby=distance for finer control
         'type': 'restaurant',
         'key': api_key
     }
-    
+
     while len(restaurants) < num_results:
         response = requests.get(url, params=params)
         time.sleep(SLEEP_TIME_SECS)
@@ -129,9 +185,9 @@ def fetch_restaurants_in_radius(location, api_key, radius, num_results):
 def get_place_details(cache, place_id, api_key, index, total):
     # Check if the place is already cached
     if place_id in cache:
-        print(f"[{index}/{total}] Using cached details for place_id: {place_id}")
+        print(f"[{index}/{total}] Using cached details for place_id: {place_id} ({cache[place_id]['name']})")
         return cache[place_id]
-    
+
     # If not cached, fetch from the API
     print(f"[{index}/{total}] Fetching details from Google for place_id: {place_id}...")
     details_url = 'https://maps.googleapis.com/maps/api/place/details/json'
@@ -140,7 +196,7 @@ def get_place_details(cache, place_id, api_key, index, total):
         'fields': 'name,formatted_address,formatted_phone_number,website,opening_hours,vicinity,geometry',
         'key': api_key
     }
-    
+
     details_response = requests.get(details_url, params=details_params)
     time.sleep(SLEEP_TIME_SECS)
     details_data = details_response.json()
@@ -151,7 +207,7 @@ def get_place_details(cache, place_id, api_key, index, total):
         address = result.get('formatted_address', 'N/A')
         phone = result.get('formatted_phone_number', 'N/A')
         website = result.get('website', 'N/A')
-        
+
         # Try to extract email from the website if available
         if website != 'N/A':
             emails = extract_emails_from_website(website)
@@ -178,18 +234,15 @@ def get_place_details(cache, place_id, api_key, index, total):
         print(f"Error: No result found for place_id: {place_id}")
         return {'name': 'N/A', 'address': 'N/A', 'phone': 'N/A', 'email': 'N/A', 'website': 'N/A', 'hours': 'N/A'}
 
-# Function to calculate distance between two lat/long points
-def calculate_distance(lat1, lng1, lat2, lng2):
-    from geopy.distance import geodesic
-    return geodesic((lat1, lng1), (lat2, lng2)).kilometers
-
+# Function to extract email addresses from a website
+# (Same as before)
 def extract_emails_from_website(url):
     # Regular expression to find email addresses (more strict)
     email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
-    
+
     # List of common prefixes to prioritize
     priority_prefixes = ['info', 'contact', 'support', 'help', 'sales', 'admin']
-    
+
     # Strip URL parameters
     parsed_url = urlparse(url)
     clean_url = urljoin(url, parsed_url.path)  # Remove any query params or fragments
@@ -200,14 +253,14 @@ def extract_emails_from_website(url):
         # Get the website content
         response = requests.get(clean_url, timeout=10)
         time.sleep(SLEEP_TIME_SECS)
-        
+
         if response.status_code == 200:
             # Parse the content with BeautifulSoup
             soup = BeautifulSoup(response.text, 'html.parser')
-            
+
             # Search for email addresses using regex
             emails = re.findall(email_pattern, soup.get_text())
-            
+
             # Check for "Contact Us" links and follow them
             contact_links = find_contact_links(soup, clean_url)
             if contact_links:
@@ -224,10 +277,10 @@ def extract_emails_from_website(url):
             # Remove duplicates and clean up emails
             emails = list(set(emails))
             emails = [email.strip() for email in emails if validate_email(email)]
-            
+
             # Prioritize common contact/help emails
             prioritized_emails = prioritize_emails(emails, priority_prefixes)
-            
+
             return prioritized_emails
         else:
             print(f"Failed to retrieve {clean_url} (status code: {response.status_code})")
@@ -306,13 +359,13 @@ Example usage:
         epilog=example_text
     )
     parser.add_argument('--search-center', '-c', type=str, default=DEFAULT_CENTER,
-                        help='The center of the search (address or city) (default: Oklahoma City, OK)')
-    parser.add_argument('--distance', '-d', type=float, default=10,
-                        help='Maximum distance from the center in kilometers (default: 10 km)')
-    parser.add_argument('--number', '-n', type=int, default=10,
-                        help='Number of restaurants to retrieve (default: 10)')
-    parser.add_argument('--order-by', '-r', type=str, choices=['distance', 'name'], default='distance',
-                        help='Column to sort the CSV by (default: distance)')
+                        help='The center of the search (address or city) (default: Mustang, OK)')
+    parser.add_argument('--distance', '-d', type=float, default=0.5,
+                        help='Distance in kilometers to move the center per batch (default: 0.5 km)')
+    parser.add_argument('--number', '-n', type=int, default=20,
+                        help='Number of restaurants to retrieve (default: 20)')
+    parser.add_argument('--bearing', '-b', type=float, default=45,
+                        help='Bearing angle in degrees from North to move the search center (default: 45 degrees)')
     parser.add_argument('--output', '-o', type=str, default='restaurants_google.csv',
                         help='Output CSV file (default: restaurants_google.csv)')
     parser.add_argument('--api-key', '-a', type=str,
@@ -336,34 +389,25 @@ Example usage:
         return
 
     # Get the list of restaurants (handling pagination)
-    restaurants = get_restaurants(location, api_key, args.number)
+    restaurants = get_restaurants(location, api_key, args.number, args.distance, args.bearing)
 
     # Calculate distance and get details for each restaurant
     detailed_restaurants = []
     total_restaurants = len(restaurants)
     for index, place in enumerate(restaurants, start=1):
         place_id = place.get('place_id')
-        lat = place['geometry']['location']['lat']
-        lng = place['geometry']['location']['lng']
 
-        # Calculate the distance between the search center and the restaurant
-        distance = calculate_distance(location[0], location[1], lat, lng)
-        
         # Get the detailed info (with caching and response debugging)
         details = get_place_details(cache, place_id, api_key, index, total_restaurants)
-        details['distance'] = distance
 
         detailed_restaurants.append(details)
-
-    # Sort the restaurants by the specified column (distance or name)
-    sorted_restaurants = sorted(detailed_restaurants, key=itemgetter(args.order_by))
 
     # Write the sorted restaurants to a CSV file
     print(f"Writing data to CSV file: {args.output}")
     with open(args.output, mode='w', newline='') as file:
-        writer = csv.DictWriter(file, fieldnames=['name', 'address', 'phone', 'email', 'website', 'hours', 'distance'])
+        writer = csv.DictWriter(file, fieldnames=['name', 'address', 'phone', 'email', 'website', 'hours'])
         writer.writeheader()
-        writer.writerows(sorted_restaurants)
+        writer.writerows(detailed_restaurants)
 
     # Save the updated cache
     save_cache(cache)
