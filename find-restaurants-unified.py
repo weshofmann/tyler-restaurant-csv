@@ -48,7 +48,6 @@ FAST_FOOD_CHAINS = [
   "chicken express",
   "freddy's frozen custard",
   "city bites",
-  "little ceasar",
   "little ceasar's pizza",
   "taco bueno",
   "schlotzsky's",
@@ -247,6 +246,7 @@ def get_place_details(cache, place_id, api_key, index, total):
         return {'name': 'N/A', 'address': 'N/A', 'phone': 'N/A', 'email': 'N/A', 'website': 'N/A', 'hours': 'N/A'}
 
 # Function to extract email addresses from a website
+# (Same as before)
 def extract_emails_from_website(url):
     # Regular expression to find email addresses (more strict)
     email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
@@ -414,6 +414,13 @@ Example usage:
         details = get_place_details(cache, place_id, api_key, index, total_restaurants)
 
         detailed_restaurants.append(details)
+
+    # Write the sorted restaurants to a CSV file
+    print(f"Writing data to CSV file: {args.output}")
+    with open(args.output, mode='w', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=['name', 'address', 'phone', 'email', 'website', 'hours'])
+        writer.writeheader()
+        writer.writerows(detailed_restaurants)
 
     # Save the updated cache
     save_cache(cache)
