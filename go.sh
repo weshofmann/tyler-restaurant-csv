@@ -1,11 +1,17 @@
 #!/bin/bash
 
-RADIUS=15
-DISTANCE=3
+RADIUS=4
+DISTANCE=2
 
-./find-restaurants.py --search-center 'The Village, OK' -n 50 -b 185 -r $RADIUS -d $DISTANCE
+./find-restaurants.py --search-center '' -n 50 -b 75 -r $RADIUS -d $DISTANCE
 echo "======================================================================================================"
-./find-restaurants.py --search-center 'Edmond, OK' -n 60 -b 225 -r $RADIUS -d $DISTANCE
+./find-restaurants.py --search-center '10145 Northwest Expy, Yukon, OK 73099' -n 50 -b 75 -r $RADIUS -d $DISTANCE
+echo "======================================================================================================"
+./find-restaurants.py --search-center 'Scissortail Park, OK' -n 50 -b 315 -r $RADIUS -d $DISTANCE
+echo "======================================================================================================"
+./find-restaurants.py --search-center 'The Village, OK' -n 75 -b 165 -r $RADIUS -d $DISTANCE
+echo "======================================================================================================"
+./find-restaurants.py --search-center 'Edmond, OK' -n 100 -b 225 -r $RADIUS -d $DISTANCE
 echo "======================================================================================================"
 ./find-restaurants.py --search-center 'Yukon, OK' -n 70 -b 90 -r $RADIUS -d $DISTANCE
 echo "======================================================================================================"
