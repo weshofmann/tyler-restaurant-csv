@@ -418,7 +418,5 @@ Example usage:
     # Save the updated cache
     save_cache(cache)
 
-    print(f"CSV file '{args.output}' created successfully!")
-
 if __name__ == '__main__':
     main()
