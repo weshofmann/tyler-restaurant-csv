@@ -11,8 +11,12 @@ from math import radians, cos, sin, sqrt, atan2, degrees
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urlunparse, urljoin
 
+DEFAULT_CENTER        = 'Mustang, OK'
+DEFAULT_BEARING       = 45   # degrees  (North = 0, East = 90, South = 180, West = 270)
+DEFAULT_DISTANCE      = 2.5  # km
+DEFAULT_SEARCH_RADIUS = 5    # km
+
 SLEEP_TIME_SECS = 0.5
-DEFAULT_CENTER = 'Norman, OK'
 CACHE_FILE = "places_cache.pkl"  # File to store cached place details
 EARTH_RADIUS_KM = 6371  # Approximate radius of Earth in kilometers
 
@@ -112,10 +116,10 @@ def move_center(lat, lng, distance_km, bearing_angle):
     return new_lat, new_lng
 
 # Function to get restaurants from Google Places API, filtering fast food and shifting center as needed
-def get_restaurants(location, api_key, num_results, distance_km, bearing_angle, search_radius):
+def get_restaurants(location, api_key, num_results, distance_km, bearing_angle, search_radius_km):
     all_restaurants = []
     visited_place_ids = set()
-    radius = search_radius * 1000  # Convert search radius to meters
+    radius = search_radius_km * 1000  # Convert search radius to meters
     lat, lng = location
 
     while len(all_restaurants) < num_results:
@@ -131,6 +135,8 @@ def get_restaurants(location, api_key, num_results, distance_km, bearing_angle, 
 
         # Filter out duplicates by checking place_id
         new_restaurants = [r for r in filtered_restaurants if r['place_id'] not in visited_place_ids]
+        if not new_restaurants:
+            print(f"No more new restaurants found in radius: {radius} meters. Shifting center.")
 
         # Track visited places to avoid duplicates
         visited_place_ids.update(r['place_id'] for r in new_restaurants)
@@ -365,14 +371,14 @@ Example usage:
     )
     parser.add_argument('--search-center', '-c', type=str, default=DEFAULT_CENTER,
                         help='The center of the search (address or city) (default: Norman, OK)')
-    parser.add_argument('--search-radius', '-r', type=str, default=20,
-                        help='The radius of the search from the center, for each batch (default: 20 km)')
-    parser.add_argument('--distance', '-d', type=float, default=4,
-                        help='Distance in kilometers to move the center per batch (default: 4 km)')
+    parser.add_argument('--search-radius', '-r', type=float, default=DEFAULT_SEARCH_RADIUS,
+                        help=f'The radius of the search from the center, for each batch (default: {DEFAULT_SEARCH_RADIUS} km)')
+    parser.add_argument('--distance', '-d', type=float, default=DEFAULT_DISTANCE,
+                        help=f'Distance in kilometers to move the center per batch (default: {DEFAULT_DISTANCE} km)')
     parser.add_argument('--number', '-n', type=int, default=20,
                         help='Number of restaurants to retrieve (default: 20)')
-    parser.add_argument('--bearing', '-b', type=float, default=0,
-                        help='Bearing angle in degrees from North to move the search center (default: 0 degrees)')
+    parser.add_argument('--bearing', '-b', type=float, default=DEFAULT_BEARING,
+                        help=f'Bearing angle in degrees from North to move the search center (default: {DEFAULT_BEARING} degrees)')
     parser.add_argument('--output', '-o', type=str, default='restaurants_google.csv',
                         help='Output CSV file (default: restaurants_google.csv)')
     parser.add_argument('--api-key', '-a', type=str,
