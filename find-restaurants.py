@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urlunparse, urljoin
 
 SLEEP_TIME_SECS = 0.5
-DEFAULT_CENTER = 'Mustang, OK'
+DEFAULT_CENTER = 'Norman, OK'
 CACHE_FILE = "places_cache.pkl"  # File to store cached place details
 EARTH_RADIUS_KM = 6371  # Approximate radius of Earth in kilometers
 
@@ -48,6 +48,17 @@ FAST_FOOD_CHAINS = [
   "taco bueno",
   "schlotzsky's",
   "schlotzskys",
+  "ihop",
+  "jimmysegg",
+  "jimmy's egg",
+  "golden chick",
+  "panda express",
+  "taco mayo",
+  "popeyes",
+  "jimmy john's",
+  "raising cane's",
+  "papa johns",
+  "dunkin",
 ]
 
 # Initialize or load cache
@@ -100,60 +111,50 @@ def move_center(lat, lng, distance_km, bearing_angle):
     print(f"Moving center to new lat/lng: {new_lat}, {new_lng} based on bearing {bearing_angle}° and distance {distance_km} km")
     return new_lat, new_lng
 
-# Function to get restaurants from Google Places API (ranked by distance) with support for multiple batches
-def get_restaurants(location, api_key, num_results, batch_size=60, radius_increment=1000):
+# Function to get restaurants from Google Places API, filtering fast food and shifting center as needed
+def get_restaurants(location, api_key, num_results, distance_km, bearing_angle, search_radius):
     all_restaurants = []
     visited_place_ids = set()
-    radius = 1000  # Initial radius in meters
-    batch_count = 0
-    lat_offset = 0.005  # Adjust this for latitude shifts between batches
-    lng_offset = 0.005  # Adjust this for longitude shifts between batches
+    radius = search_radius * 1000  # Convert search radius to meters
     lat, lng = location
 
     while len(all_restaurants) < num_results:
-        print(f"Fetching batch {batch_count + 1}...")
+        print(f"\n=== Searching at lat={lat}, lng={lng} ===")
         
-        # Adjust the location slightly to search in a new area
-        lat += lat_offset
-        lng += lng_offset
-        new_location = (lat, lng)
-
-        # Fetch restaurants for the new location
-        restaurants = fetch_restaurants_in_radius(new_location, api_key, radius, batch_size)
+        # Fetch restaurants for the current location
+        restaurants = fetch_restaurants_in_radius((lat, lng), api_key, radius)
         if not restaurants:
-            print(f"No more restaurants found in radius: {radius} meters.")
-            break
-
+            print(f"No more restaurants found in radius: {radius} meters. Shifting center.")
+        
         # Filter out fast-food chains by name
         filtered_restaurants = [r for r in restaurants if not any(chain.lower() in r['name'].lower() for chain in FAST_FOOD_CHAINS)]
 
         # Filter out duplicates by checking place_id
         new_restaurants = [r for r in filtered_restaurants if r['place_id'] not in visited_place_ids]
-        
+
         # Track visited places to avoid duplicates
         visited_place_ids.update(r['place_id'] for r in new_restaurants)
-        
+
         # Add unique new restaurants to the final list
         all_restaurants.extend(new_restaurants)
         
-        print(f"Retrieved {len(all_restaurants)} unique restaurants so far.")
-        
-        if len(new_restaurants) < batch_size:
-            # Increase the radius to cover a larger area if we're not getting enough results
-            radius += radius_increment
-        batch_count += 1
+        print(f"Retrieved {len(new_restaurants)} new restaurants, total unique valid restaurants: {len(all_restaurants)}")
 
         # Stop if we have enough restaurants
         if len(all_restaurants) >= num_results:
+            print(f"Reached the target of {num_results} restaurants.")
             break
-    
+
+        # Shift the center if needed
+        print(f"Moving center by {distance_km} km at a bearing of {bearing_angle}°")
+        lat, lng = move_center(lat, lng, distance_km, bearing_angle)
+
     return all_restaurants[:num_results]
 
-# Helper function to fetch restaurants within a specified radius
-def fetch_restaurants_in_radius(location, api_key, radius, num_results):
+# Helper function to fetch restaurants within a specified radius, pulling all available pages
+def fetch_restaurants_in_radius(location, api_key, radius):
     restaurants = []
     url = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
-
     params = {
         'location': f"{location[0]},{location[1]}",  # Latitude, Longitude
         'radius': radius,  # Use radius instead of rankby=distance for finer control
@@ -161,7 +162,7 @@ def fetch_restaurants_in_radius(location, api_key, radius, num_results):
         'key': api_key
     }
 
-    while len(restaurants) < num_results:
+    while True:
         response = requests.get(url, params=params)
         time.sleep(SLEEP_TIME_SECS)
         data = response.json()
@@ -170,13 +171,17 @@ def fetch_restaurants_in_radius(location, api_key, radius, num_results):
             print(f"Error in Nearby Search API response: {data['error_message']}")
             break
 
-        restaurants.extend(data.get('results', []))
+        if 'results' in data:
+            restaurants.extend(data.get('results', []))
 
         next_page_token = data.get('next_page_token')
-        if next_page_token and len(restaurants) < num_results:
+
+        if next_page_token:
+            print("Waiting for next page token...")
+            time.sleep(2)  # Required delay before using the next_page_token
             params['pagetoken'] = next_page_token
-            time.sleep(2)  # Required delay for pagination
         else:
+            # No more pages available, exit loop
             break
 
     return restaurants
@@ -359,13 +364,15 @@ Example usage:
         epilog=example_text
     )
     parser.add_argument('--search-center', '-c', type=str, default=DEFAULT_CENTER,
-                        help='The center of the search (address or city) (default: Mustang, OK)')
-    parser.add_argument('--distance', '-d', type=float, default=0.5,
-                        help='Distance in kilometers to move the center per batch (default: 0.5 km)')
+                        help='The center of the search (address or city) (default: Norman, OK)')
+    parser.add_argument('--search-radius', '-r', type=str, default=20,
+                        help='The radius of the search from the center, for each batch (default: 20 km)')
+    parser.add_argument('--distance', '-d', type=float, default=4,
+                        help='Distance in kilometers to move the center per batch (default: 4 km)')
     parser.add_argument('--number', '-n', type=int, default=20,
                         help='Number of restaurants to retrieve (default: 20)')
-    parser.add_argument('--bearing', '-b', type=float, default=45,
-                        help='Bearing angle in degrees from North to move the search center (default: 45 degrees)')
+    parser.add_argument('--bearing', '-b', type=float, default=0,
+                        help='Bearing angle in degrees from North to move the search center (default: 0 degrees)')
     parser.add_argument('--output', '-o', type=str, default='restaurants_google.csv',
                         help='Output CSV file (default: restaurants_google.csv)')
     parser.add_argument('--api-key', '-a', type=str,
@@ -389,7 +396,7 @@ Example usage:
         return
 
     # Get the list of restaurants (handling pagination)
-    restaurants = get_restaurants(location, api_key, args.number, args.distance, args.bearing)
+    restaurants = get_restaurants(location, api_key, args.number, args.distance, args.bearing, args.search_radius)
 
     # Calculate distance and get details for each restaurant
     detailed_restaurants = []
