@@ -515,6 +515,12 @@ async def process_page(url, session, emails, visited, queue, debug):
 
                     # Unquote the href to handle URL-encoded characters
                     href_unquoted = unquote(href)
+                    
+                    # Use the filtering function to exclude certain domains
+                    if should_exclude_url(href):
+                        if debug:
+                            print(f'Skipping excluded domain: {href}')
+                        continue  # Skip to next link
 
                     # Handle mailto links
                     if href_unquoted.startswith('mailto:'):
@@ -553,12 +559,6 @@ async def process_page(url, session, emails, visited, queue, debug):
                     if '@' in parsed_href.netloc:
                         if debug:
                             print(f"Skipping URL with '@' in netloc: {href_unquoted}")
-                        continue  # Skip to next link
-
-                    # Use the filtering function to exclude certain domains
-                    if should_exclude_url(href):
-                        if debug:
-                            print(f'Skipping excluded domain: {href}')
                         continue  # Skip to next link
 
                     # Handle protocol-relative URLs (starting with '//')
