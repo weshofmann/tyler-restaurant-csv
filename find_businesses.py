@@ -274,7 +274,7 @@ def get_place_details(cache, place_id, api_key, index, total):
 
         # Try to extract email from the website if available
         if website != 'N/A':
-            emails = asyncio.run(find_emails(website, DEBUG))  # the async calls will resolve before we try to access emails
+            emails = find_emails(website, DEBUG)  
             emails = normalize_emails(emails)    # This effectively removes duplicates
             emails = prioritize_emails(emails)
             email = ';'.join(emails) if emails else 'N/A'
@@ -433,7 +433,10 @@ def should_exclude_url(url):
     except Exception:
         return True  # Exclude URLs that cannot be parsed
 
-async def find_emails(start_url, debug=False):
+def find_emails(start_url, debug=False):
+    return asyncio.run(find_emails_async(start_url, debug))
+
+async def find_emails_async(start_url, debug=False):
     emails = set()
     visited = set()
     queue = asyncio.Queue()
@@ -472,8 +475,11 @@ async def worker(session, emails, visited, queue, debug):
             queue.task_done()
             continue
         visited.add(url)
-        print(f'Processing page: {url}')
-        await process_page(url, session, emails, visited, queue, debug)
+        if should_exclude_url(url):
+            print(f'Skipping excluded page: {url}')
+        else:
+          print(f'Processing page: {url}')
+          await process_page(url, session, emails, visited, queue, debug)
         queue.task_done()
 
 def get_domain(url):
