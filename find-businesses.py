@@ -11,8 +11,8 @@ from math import radians, cos, sin, sqrt, atan2, degrees
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urlunparse, urljoin
 
-DEFAULT_CENTER        = 'Mustang, OK'
-DEFAULT_BEARING       = 45   # degrees  (North = 0, East = 90, South = 180, West = 270)
+DEFAULT_CENTER        = 'Oklahoma City, OK'
+DEFAULT_BEARING       = 180  # degrees  (North = 0, East = 90, South = 180, West = 270)
 DEFAULT_DISTANCE      = 2.5  # km
 DEFAULT_SEARCH_RADIUS = 5    # km
 DEFAULT_BUSINESS_TYPE = "restaurant"
@@ -117,51 +117,51 @@ def move_center(lat, lng, distance_km, bearing_angle):
     print(f"Moving center to new lat/lng: {new_lat}, {new_lng} based on bearing {bearing_angle}° and distance {distance_km} km")
     return new_lat, new_lng
 
-# Function to get restaurants from Google Places API, filtering fast food and shifting center as needed
-def get_restaurants(location, api_key, business_type, num_results, distance_km, bearing_angle, search_radius_km):
-    all_restaurants = []
+# Function to get businesses from Google Places API, filtering fast food and shifting center as needed
+def get_businesses(location, api_key, business_type, num_results, distance_km, bearing_angle, search_radius_km):
+    all_businesses = []
     visited_place_ids = set()
     radius = search_radius_km * 1000  # Convert search radius to meters
     lat, lng = location
 
-    while len(all_restaurants) < num_results:
+    while len(all_businesses) < num_results:
         print(f"\n=== Searching at lat={lat}, lng={lng} ===")
         
-        # Fetch restaurants for the current location
-        restaurants = fetch_restaurants_in_radius((lat, lng), api_key, radius, business_type)
-        if not restaurants:
-            print(f"No more restaurants found in radius: {radius} meters. Shifting center.")
+        # Fetch businesses for the current location
+        businesses = fetch_businesses_in_radius((lat, lng), api_key, radius, business_type)
+        if not businesses:
+            print(f"No more businesses found in radius: {radius} meters. Shifting center.")
         
         # Filter out fast-food chains by name
-        filtered_restaurants = [r for r in restaurants if not any(chain.lower() in r['name'].lower() for chain in FAST_FOOD_CHAINS)]
+        filtered_businesses = [r for r in businesses if not any(chain.lower() in r['name'].lower() for chain in FAST_FOOD_CHAINS)]
 
         # Filter out duplicates by checking place_id
-        new_restaurants = [r for r in filtered_restaurants if r['place_id'] not in visited_place_ids]
-        if not new_restaurants:
-            print(f"No more new restaurants found in radius: {radius} meters. Shifting center.")
+        new_businesses = [r for r in filtered_businesses if r['place_id'] not in visited_place_ids]
+        if not new_businesses:
+            print(f"No more new businesses found in radius: {radius} meters. Shifting center.")
 
         # Track visited places to avoid duplicates
-        visited_place_ids.update(r['place_id'] for r in new_restaurants)
+        visited_place_ids.update(r['place_id'] for r in new_businesses)
 
-        # Add unique new restaurants to the final list
-        all_restaurants.extend(new_restaurants)
+        # Add unique new businesses to the final list
+        all_businesses.extend(new_businesses)
         
-        print(f"Retrieved {len(new_restaurants)} new restaurants, total unique valid restaurants: {len(all_restaurants)}")
+        print(f"Retrieved {len(new_businesses)} new businesses, total unique valid businesses: {len(all_businesses)}")
 
-        # Stop if we have enough restaurants
-        if len(all_restaurants) >= num_results:
-            print(f"Reached the target of {num_results} restaurants.")
+        # Stop if we have enough businesses
+        if len(all_businesses) >= num_results:
+            print(f"Reached the target of {num_results} businesses.")
             break
 
         # Shift the center if needed
         print(f"Moving center by {distance_km} km at a bearing of {bearing_angle}°")
         lat, lng = move_center(lat, lng, distance_km, bearing_angle)
 
-    return all_restaurants[:num_results]
+    return all_businesses[:num_results]
 
-# Helper function to fetch restaurants within a specified radius, pulling all available pages
-def fetch_restaurants_in_radius(location, api_key, radius, business_type):
-    restaurants = []
+# Helper function to fetch businesses within a specified radius, pulling all available pages
+def fetch_businesses_in_radius(location, api_key, radius, business_type):
+    businesses = []
     url = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
     params = {
         'location': f"{location[0]},{location[1]}",  # Latitude, Longitude
@@ -180,7 +180,7 @@ def fetch_restaurants_in_radius(location, api_key, radius, business_type):
             break
 
         if 'results' in data:
-            restaurants.extend(data.get('results', []))
+            businesses.extend(data.get('results', []))
 
         next_page_token = data.get('next_page_token')
 
@@ -192,9 +192,9 @@ def fetch_restaurants_in_radius(location, api_key, radius, business_type):
             # No more pages available, exit loop
             break
 
-    return restaurants
+    return businesses
 
-# Function to get detailed information for each restaurant (with caching and response debugging)
+# Function to get detailed information for each business (with caching and response debugging)
 def get_place_details(cache, place_id, api_key, index, total):
     # Check if the place is already cached
     if place_id in cache:
@@ -358,15 +358,15 @@ Example usage:
 
   # Using the environment variable for the API key:
   export GOOGLE_API_KEY=your_google_api_key_here
-  ./find-restaurants.py
+  ./find-businesses.py
 
   # Using the command-line API key option:
-  ./find-restaurants.py --api-key your_google_api_key_here
+  ./find-businesses.py --api-key your_google_api_key_here
 '''
 
     # Set up argument parsing for the various options, including custom examples in the epilog
     parser = argparse.ArgumentParser(
-        description="Retrieve restaurants using Google Places API.",
+        description="Retrieve businesses using Google Places API.",
         formatter_class=argparse.RawTextHelpFormatter,
         epilog=example_text
     )
@@ -377,11 +377,11 @@ Example usage:
     parser.add_argument('--distance', '-d', type=float, default=DEFAULT_DISTANCE,
                         help=f'Distance in kilometers to move the center per batch (default: {DEFAULT_DISTANCE} km)')
     parser.add_argument('--number', '-n', type=int, default=20,
-                        help='Number of restaurants to retrieve (default: 20)')
+                        help='Number of businesses to retrieve (default: 20)')
     parser.add_argument('--bearing', '-b', type=float, default=DEFAULT_BEARING,
                         help=f'Bearing angle in degrees from North to move the search center (default: {DEFAULT_BEARING} degrees)')
-    parser.add_argument('--output', '-o', type=str, default='restaurants_google.csv',
-                        help='Output CSV file (default: restaurants_google.csv)')
+    parser.add_argument('--output', '-o', type=str, default='businesses_google.csv',
+                        help='Output CSV file (default: businesses_google.csv)')
     parser.add_argument('--api-key', '-a', type=str,
                         help='Google API Key. If not provided, the environment variable GOOGLE_API_KEY will be used.')
     parser.add_argument('--business-type', '-t', type=str, default=DEFAULT_BUSINESS_TYPE,
@@ -404,19 +404,19 @@ Example usage:
         print(f"Error: Unable to geocode location: {search_center}")
         return
 
-    # Get the list of restaurants (handling pagination)
-    restaurants = get_restaurants(location, api_key, args.business_type, args.number, args.distance, args.bearing, args.search_radius)
+    # Get the list of businesses (handling pagination)
+    businesses = get_businesses(location, api_key, args.business_type, args.number, args.distance, args.bearing, args.search_radius)
 
-    # Calculate distance and get details for each restaurant
-    detailed_restaurants = []
-    total_restaurants = len(restaurants)
-    for index, place in enumerate(restaurants, start=1):
+    # Calculate distance and get details for each business
+    detailed_businesses = []
+    total_businesses = len(businesses)
+    for index, place in enumerate(businesses, start=1):
         place_id = place.get('place_id')
 
         # Get the detailed info (with caching and response debugging)
-        details = get_place_details(cache, place_id, api_key, index, total_restaurants)
+        details = get_place_details(cache, place_id, api_key, index, total_businesses)
 
-        detailed_restaurants.append(details)
+        detailed_businesses.append(details)
 
     # Save the updated cache
     save_cache(cache)
