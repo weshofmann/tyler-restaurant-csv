@@ -260,7 +260,7 @@ def get_place_details(cache, place_id, api_key, index, total):
             emails = normalize_emails(emails)    # This effectively removes duplicates
             emails = prioritize_emails(emails)
             email = ';'.join(emails) if emails else 'N/A'
-            print(f'=> Found the following emails: \"{email}\"')
+            print(f'=> Found the following emails: \"{'; '.join(emails)}\"')
         else:
             email = 'N/A'
 
@@ -341,6 +341,36 @@ def prioritize_emails(email_list):
 
     return sorted_emails
 
+def filter_valid_emails(emails, debug=False):
+    """
+    Filters out emails that are likely filenames or invalid.
+
+    Parameters:
+        emails (set): A set of email addresses.
+        debug (bool): If True, prints debug information.
+
+    Returns:
+        set: A set of valid email addresses.
+    """
+    valid_emails = set()
+    invalid_tlds = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'svg'}
+    for email in emails:
+        try:
+            local_part, domain_part = email.rsplit('@', 1)
+            domain_labels = domain_part.split('.')
+            tld = domain_labels[-1].lower()
+            if tld not in invalid_tlds:
+                valid_emails.add(email)
+            else:
+                if debug:
+                    print(f"Skipping email with invalid TLD: {email}")
+        except ValueError:
+            # Invalid email format
+            if debug:
+                print(f"Invalid email format: {email}")
+            continue
+    return valid_emails
+
 async def find_emails(start_url, debug=False):
     emails = set()
     visited = set()
@@ -409,10 +439,11 @@ async def process_page(url, session, emails, visited, queue, debug):
                     return
                 html = await response.text()
                 new_emails = set(EMAIL_REGEX.findall(html))
-                if new_emails:
+                valid_emails = filter_valid_emails(new_emails, debug=debug)
+                if valid_emails:
                     if debug:
-                        print(f'Found emails on {url}: {new_emails}')
-                emails.update(new_emails)
+                        print(f'Found emails on {url}: {valid_emails}')
+                emails.update(valid_emails)
                 # Find new URLs to crawl
                 soup = BeautifulSoup(html, 'html.parser')
                 base_domain = get_domain(url)
