@@ -224,7 +224,7 @@ def get_place_details(cache, place_id, api_key, index, total):
         # Try to extract email from the website if available
         if website != 'N/A':
             emails = extract_emails_from_website(website)
-            email = emails[0] if emails else 'N/A'
+            email = ';'.join(emails) if emails else 'N/A'
         else:
             email = 'N/A'
 
