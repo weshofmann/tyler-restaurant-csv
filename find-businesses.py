@@ -16,9 +16,9 @@ DEFAULT_BEARING       = 180  # degrees  (North = 0, East = 90, South = 180, West
 DEFAULT_DISTANCE      = 2.5  # km
 DEFAULT_SEARCH_RADIUS = 5    # km
 DEFAULT_BUSINESS_TYPE = "restaurant"
+DEFAULT_CACHE_FILE = "places_cache.pkl"  # File to store cached place details
 
 SLEEP_TIME_SECS = 0.5
-CACHE_FILE = "places_cache.pkl"  # File to store cached place details
 EARTH_RADIUS_KM = 6371  # Approximate radius of Earth in kilometers
 
 # List of fast-food chains to exclude
@@ -68,14 +68,14 @@ FAST_FOOD_CHAINS = [
 ]
 
 # Initialize or load cache
-def load_cache():
-    if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, 'rb') as f:
+def load_cache(cache_file):
+    if os.path.exists(cache_file):
+        with open(cache_file, 'rb') as f:
             return pickle.load(f)
     return {}
 
-def save_cache(cache):
-    with open(CACHE_FILE, 'wb') as f:
+def save_cache(cache, cache_file):
+    with open(cache_file, 'wb') as f:
         pickle.dump(cache, f)
 
 # Google Geocoding API to convert an address into lat/long
@@ -395,7 +395,8 @@ Example usage:
         return
 
     # Load the cache
-    cache = load_cache()
+    cache_file = f'{DEFAULT_CACHE_FILE}.{args.business_type}'
+    cache = load_cache(cache_file)
 
     # Geocode the search center to get latitude and longitude
     search_center = args.search_center
@@ -419,7 +420,7 @@ Example usage:
         detailed_businesses.append(details)
 
     # Save the updated cache
-    save_cache(cache)
+    save_cache(cache, cache_file)
 
 if __name__ == '__main__':
     main()
