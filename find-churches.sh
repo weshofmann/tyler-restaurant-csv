@@ -12,8 +12,9 @@ function divider() {
   echo ""
 
 }
-./find-businesses.py --search-center 'Bethany, OK' -n 75 --bearing 45 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
 ./find-businesses.py --search-center 'Norman, OK' -n 100 --bearing 0 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
+divider
+./find-businesses.py --search-center 'Bethany, OK' -n 150 --bearing 45 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
 divider
 ./find-businesses.py --search-center 'Midwest City, OK' -n 150 --bearing 270 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
 divider
@@ -29,9 +30,7 @@ divider
 divider
 ./find-businesses.py --search-center 'Yukon, OK' -n 300 --bearing 100 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
 divider
-divider
 ./find-businesses.py --search-center 'Oklahoma City, OK' -n 50 --bearing 170 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
-divider
 divider
 ./find-businesses.py --search-center 'The Village, OK' -n 300 --bearing 165 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
 divider
