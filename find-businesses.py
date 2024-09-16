@@ -7,9 +7,16 @@ import argparse
 import time
 import os
 import pickle
+import asyncio
+import aiohttp
+import tldextract
+
 from math import radians, cos, sin, sqrt, atan2, degrees
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse, urlunparse, urljoin
+from urllib.parse import urldefrag, urlparse, urlunparse, urljoin, unquote, quote
+from aiolimiter import AsyncLimiter
+
+DEBUG = False
 
 DEFAULT_CENTER        = 'Oklahoma City, OK'
 DEFAULT_BEARING       = 180  # degrees  (North = 0, East = 90, South = 180, West = 270)
@@ -21,8 +28,28 @@ DEFAULT_CACHE_FILE = "places_cache.pkl"  # File to store cached place details
 SLEEP_TIME_SECS = 0.25
 EARTH_RADIUS_KM = 6371  # Approximate radius of Earth in kilometers
 
-EMAIL_PATTERN = r'(?i)(?<![\w\.-])([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})(?![\w\.-])'
+EMAIL_REGEX = re.compile(
+    r'''
+    (?i)                           # Case-insensitive matching
+    (?<![\w\.-])                   # Negative lookbehind
+    (                              # Start of capturing group
+        [a-z0-9]+                  # Alphanumeric start in local part
+        (?:[._%+-][a-z0-9]+)*      # Allowed special chars in the local part
+        @                          # At symbol
+        (?:                        # Start of domain part
+            [a-z0-9]+              # Domain label starts with alphanumeric
+            (?:[-][a-z0-9]+)*      # Domain label may have hyphens
+            \.                     # Dot separator
+        )+                         # One or more domain labels
+        [a-z]{2,}                  # Top-level domain
+    )                              # End of capturing group
+    (?![\w\.-])                    # Negative lookahead
+    ''', re.VERBOSE
+)
 
+# Keywords to prioritize certain pages when we scrape urls
+URL_KEYWORDS = ['contact', 'about', 'staff', 'team', 'info', 'support', 'help', 'home',
+'guest', 'member', 'location', 'people', 'jobs']
 
 # List of fast-food chains to exclude
 FAST_FOOD_CHAINS = [
@@ -69,6 +96,9 @@ FAST_FOOD_CHAINS = [
   "papa johns",
   "dunkin",
 ]
+
+# Rate limiter: 1 request per second (adjust as needed)
+rate_limiter = AsyncLimiter(max_rate=1, time_period=SLEEP_TIME_SECS)  # 1 request per 1 second
 
 # Initialize or load cache
 def load_cache(cache_file):
@@ -226,10 +256,11 @@ def get_place_details(cache, place_id, api_key, index, total):
 
         # Try to extract email from the website if available
         if website != 'N/A':
-            emails = extract_emails_from_website(website)
-            emails = list(dict.fromkeys(emails))    # This effectively removes duplicates
+            emails = asyncio.run(find_emails(website, DEBUG))  # the async calls will resolve before we try to access emails
+            emails = normalize_emails(emails)    # This effectively removes duplicates
+            emails = prioritize_emails(emails)
             email = ';'.join(emails) if emails else 'N/A'
-            print(f'Found the following emails: \"{email}\"')
+            print(f'=> Found the following emails: \"{email}\"')
         else:
             email = 'N/A'
 
@@ -252,109 +283,215 @@ def get_place_details(cache, place_id, api_key, index, total):
         print(f"Error: No result found for place_id: {place_id}")
         return {'name': 'N/A', 'address': 'N/A', 'phone': 'N/A', 'email': 'N/A', 'website': 'N/A', 'hours': 'N/A'}
 
-# Function to extract email addresses from a website
-def extract_emails_from_website(url):
-    # Regular expression to find email addresses (more strict)
-    email_pattern = EMAIL_PATTERN
+def normalize_emails(email_list):
+    """
+    Converts all emails in the list to lowercase and removes duplicates,
+    preserving the original order.
 
-    # List of common prefixes to prioritize
-    priority_prefixes = ['info', 'contact', 'support', 'help', 'sales', 'admin']
+    Parameters:
+        email_list (list): A list of email addresses (strings).
 
-    # Strip URL parameters
-    parsed_url = urlparse(url)
-    clean_url = urljoin(url, parsed_url.path)  # Remove any query params or fragments
+    Returns:
+        list: A new list with emails in lowercase and duplicates removed.
+    """
+    seen = set()
+    normalized_list = []
+    for email in email_list:
+        email_lower = email.lower()
+        if email_lower not in seen:
+            seen.add(email_lower)
+            normalized_list.append(email_lower)
+    return normalized_list
 
-    print(f"Visiting {clean_url} to extract emails...")
+def prioritize_emails(email_list):
+    """
+    Sorts a list of email addresses, prioritizing those likely to be good points of contact.
 
+    Parameters:
+        email_list (list): A list of email addresses (strings).
+
+    Returns:
+        list: A new list with emails sorted to prioritize business contact addresses.
+    """
+    # List of prefixes that are likely good points of contact
+    priority_prefixes = [
+        'sales', 'info', 'questions', 'contact', 'support', 'hello',
+        'inquiries', 'business', 'admin', 'office', 'general', 'customerservice',
+        'enquiries', 'service', 'team', 'marketing', 'press', 'partnerships',
+        'help', 'career', 'jobs', 'inquiry', 'media', 'hr', 'recruitment',
+        'feedback', 'legal', 'enquiry', 'request', 'advertising', 'affiliates',
+        'billing', 'donations', 'volunteer', 'webmaster', 'newsletter', 'pr',
+        'services', 'order', 'orders', 'purchasing', 'management', 'info-en',
+        'customercare', 'customerrelations', 'crm', 'customer-service', 'cs',
+        'supportteam', 'helpdesk', 'assistance'
+    ]
+
+    # Normalize priority prefixes for case-insensitive comparison
+    priority_prefixes = set(prefix.lower() for prefix in priority_prefixes)
+
+    def get_prefix(email):
+        # Extract the local part before the '@' symbol and convert to lowercase
+        return email.split('@')[0].lower()
+
+    # Sort the emails
+    sorted_emails = sorted(
+        email_list,
+        key=lambda email: (get_prefix(email) not in priority_prefixes, email)
+    )
+
+    return sorted_emails
+
+async def find_emails(start_url, debug=False):
+    emails = set()
+    visited = set()
+    queue = asyncio.Queue()
+    await queue.put(start_url)
+    if debug:
+        print(f'Starting crawl with URL: {start_url}')
+
+    async with aiohttp.ClientSession(headers={'User-Agent': 'Mozilla/5.0 (compatible; EmailCrawler/1.0)'}) as session:
+        tasks = []
+        for i in range(10):  # Number of concurrent workers
+            task = asyncio.create_task(worker(session, emails, visited, queue, debug))
+            tasks.append(task)
+            if debug:
+                print(f'Created worker {i+1}')
+        await queue.join()
+        # Stop workers
+        for _ in range(10):
+            await queue.put(None)
+        await asyncio.gather(*tasks)
+
+    if debug:
+        print('Crawl finished.')
+    return emails
+
+async def worker(session, emails, visited, queue, debug):
+    while True:
+        url = await queue.get()
+        if url is None:
+            queue.task_done()
+            if debug:
+                print('Worker received termination signal.')
+            break
+        if url in visited:
+            if debug:
+                print(f'Skipping already visited URL: {url}')
+            queue.task_done()
+            continue
+        visited.add(url)
+        print(f'Processing page: {url}')
+        await process_page(url, session, emails, visited, queue, debug)
+        queue.task_done()
+
+def get_domain(url):
+    ext = tldextract.extract(url)
+    domain = f"{ext.domain}.{ext.suffix}"
+    return domain.lower()
+
+async def process_page(url, session, emails, visited, queue, debug):
     try:
-        # Get the website content
-        response = requests.get(clean_url, timeout=10)
-        time.sleep(SLEEP_TIME_SECS)
+        # Use the rate limiter
+        async with rate_limiter:
+            if debug:
+                print(f'Sending GET request to {url}')
+            async with session.get(url, timeout=10) as response:
+                if debug:
+                    print(f'Received response with status {response.status} for {url}')
+                if response.status != 200:
+                    if debug:
+                        print(f'Non-200 status code for {url}: {response.status}')
+                    return
+                content_type = response.headers.get('content-type', '')
+                if 'text/html' not in content_type:
+                    if debug:
+                        print(f'Skipping non-HTML content at {url}: {content_type}')
+                    return
+                html = await response.text()
+                new_emails = set(EMAIL_REGEX.findall(html))
+                if new_emails:
+                    if debug:
+                        print(f'Found emails on {url}: {new_emails}')
+                emails.update(new_emails)
+                # Find new URLs to crawl
+                soup = BeautifulSoup(html, 'html.parser')
+                base_domain = get_domain(url)
+                for link in soup.find_all('a', href=True):
+                    href = link['href']
+                    href = urldefrag(href)[0]  # Remove fragment
 
-        if response.status_code == 200:
-            # Parse the content with BeautifulSoup
-            soup = BeautifulSoup(response.text, 'html.parser')
+                    # Unquote the href to handle URL-encoded characters
+                    href_unquoted = unquote(href)
 
-            # Search for email addresses using regex
-            emails = re.findall(email_pattern, soup.get_text())
+                    # Handle mailto links
+                    if href_unquoted.startswith('mailto:'):
+                        email_address = href_unquoted[7:]  # Remove 'mailto:'
+                        email_address = email_address.split('?')[0]  # Remove any parameters
+                        match = EMAIL_REGEX.fullmatch(email_address)
+                        if match:
+                            emails.add(match.group(1))
+                            if debug:
+                                print(f'Found email in mailto link: {email_address}')
+                        else:
+                            if debug:
+                                print(f'Invalid email in mailto link: {email_address}')
+                        continue  # Skip to next link
 
-            # Check for "Contact Us" links and follow them
-            contact_links = find_contact_links(soup, clean_url)
-            if contact_links:
-                for link in contact_links:
-                    # Handle mailto links directly
-                    if link.startswith('mailto:'):
-                        email = link.replace('mailto:', '').strip()
-                        print(f"Found mailto link with email: {email}")
-                        emails.append(email)
+                    # Handle email addresses in href without mailto:
+                    if '@' in href_unquoted:
+                        possible_email = href_unquoted.split('?')[0]
+                        match = EMAIL_REGEX.fullmatch(possible_email)
+                        if match:
+                            emails.add(match.group(1))
+                            if debug:
+                                print(f'Found email in href: {possible_email}')
+                            continue  # Skip to next link
+
+                    # Parse the href
+                    parsed_href = urlparse(href_unquoted)
+
+                    # Skip non-http(s) links (e.g., 'javascript:', 'tel:')
+                    if parsed_href.scheme and parsed_href.scheme not in ('http', 'https'):
+                        if debug:
+                            print(f'Skipping non-http(s) link: {href_unquoted}')
+                        continue  # Skip to next link
+
+                    # Skip URLs with '@' in netloc (likely an email address misinterpreted)
+                    if '@' in parsed_href.netloc:
+                        if debug:
+                            print(f"Skipping URL with '@' in netloc: {href_unquoted}")
+                        continue  # Skip to next link
+
+                    # Handle protocol-relative URLs (starting with '//')
+                    if href_unquoted.startswith('//'):
+                        href = 'http:' + href_unquoted
+                    # Convert relative URLs to absolute URLs
+                    elif not parsed_href.scheme:
+                        href = urljoin(url, href_unquoted)
                     else:
-                        print(f"Following contact link: {link}")
-                        emails += extract_emails_from_contact_page(link)
+                        href = href_unquoted
 
-            # Remove duplicates and clean up emails
-            emails = list(set(emails))
-            emails = [email.strip() for email in emails if validate_email(email)]
-
-            # Prioritize common contact/help emails
-            prioritized_emails = prioritize_emails(emails, priority_prefixes)
-
-            return prioritized_emails
-        else:
-            print(f"Failed to retrieve {clean_url} (status code: {response.status_code})")
-            return []
-    except requests.RequestException as e:
-        print(f"Error fetching {clean_url}: {e}")
-        return []
-
-def find_contact_links(soup, base_url):
-    """Find possible contact-related links on the page."""
-    contact_links = []
-    for a_tag in soup.find_all('a', href=True):
-        href = a_tag['href']
-        # Handle mailto links directly by adding them to the list
-        if href.lower().startswith('mailto:'):
-            contact_links.append(href)
-        elif any(keyword in href.lower() for keyword in ['contact', 'about', 'support', 'help']):
-            full_url = urljoin(base_url, href)  # Handle relative URLs
-            contact_links.append(full_url)
-    return contact_links
-
-def prioritize_emails(emails, priority_prefixes):
-    """Reorder emails, prioritizing those that start with common prefixes like 'info', 'contact', etc."""
-    prioritized = []
-    others = []
-    
-    for email in emails:
-        local_part = email.split('@')[0].lower()  # Get the part before the '@'
-        if any(local_part.startswith(prefix) for prefix in priority_prefixes):
-            prioritized.append(email)
-        else:
-            others.append(email)
-    
-    # Return prioritized emails first, followed by others
-    return prioritized + others
-
-def validate_email(email):
-    """Validate if the extracted text is a plausible email address."""
-    return email and '@' in email and not any(keyword in email.lower() for keyword in ['powered', 'email', 'address'])
-
-def extract_emails_from_contact_page(contact_url):
-    """Visit a contact-related page and attempt to extract emails."""
-    print(f"Extracting emails from contact page: {contact_url}")
-    try:
-        response = requests.get(contact_url, timeout=10)
-        time.sleep(SLEEP_TIME_SECS)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            email_pattern = EMAIL_PATTERN
-            emails = re.findall(email_pattern, soup.get_text())
-            return emails
-        else:
-            print(f"Failed to retrieve contact page {contact_url} (status code: {response.status_code})")
-            return []
-    except requests.RequestException as e:
-        print(f"Error fetching contact page {contact_url}: {e}")
-        return []
+                    # Now process the URL
+                    link_domain = get_domain(href)
+                    if link_domain != base_domain:
+                        if debug:
+                            print(f'Skipping external link: {href}')
+                        continue  # Skip external links
+                    if any(keyword in href.lower() for keyword in URL_KEYWORDS):
+                        if href not in visited:
+                            if debug:
+                                print(f'Adding to queue: {href}')
+                            await queue.put(href)
+                        else:
+                            if debug:
+                                print(f'Already visited or queued: {href}')
+                    else:
+                        if debug:
+                            print(f'URL does not match keywords, skipping: {href}')
+    except Exception as e:
+        if debug:
+            print(f'Error processing {url}: {e}')
+        pass  # Ignore errors to keep the crawler running
 
 # Main function to handle argument parsing and CSV writing
 def main():
