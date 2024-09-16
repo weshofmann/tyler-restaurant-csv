@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RADIUS=4
+RADIUS=3
 DISTANCE=1.5
 BUSINESS_TYPE=restaurant
 
@@ -13,11 +13,11 @@ function divider() {
 
 }
 
-./find_businesses.py --search-center 'Norman, OK' -n 50 --bearing 0 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
-divider
-./find_businesses.py --search-center 'Midwest City, OK' -n 200 --bearing 270 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
-divider
-./find_businesses.py --search-center 'The Village, OK' -n 500 --bearing 165 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
+# ./find_businesses.py --search-center 'Norman, OK' -n 50 --bearing 0 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
+# divider
+# ./find_businesses.py --search-center 'Midwest City, OK' -n 200 --bearing 270 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
+# divider
+./find_businesses.py --search-center 'The Village, OK' -n 300 --bearing 165 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
 divider
 ./find_businesses.py --search-center 'Quail Springs Mall, OK' -n 150 --bearing 165 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
 divider

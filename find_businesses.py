@@ -10,6 +10,7 @@ import pickle
 import asyncio
 import aiohttp
 import tldextract
+import posixpath
 
 from math import radians, cos, sin, sqrt, atan2, degrees
 from bs4 import BeautifulSoup
@@ -111,6 +112,18 @@ EXCLUDED_DOMAINS = {
     'bit.ly',
     'goo.gl',
 
+    'chuckecheese.com',
+    'churchs.com',
+    'bywoops.com',
+    'chilis.com',
+    'jackinthebox.com',
+    'carlsjr.com',
+    'dairyqueen.com',
+    'einsteinbros.com',
+    'tropicalsmoothiecafe.com',
+
+    'mustangchurch.com',
+    'blanchardchurchofchrist.org',
     'toastmastersclubs.org',
     'support.toastmastersclubs.org',
     '84thchurch.com',
@@ -132,9 +145,9 @@ def load_cache(cache_file):
 
 def save_cache(cache, cache_file):
     with open(cache_file, 'wb') as f:
-        print(f'** Begin persisting cache file: {cache_file}...', end='')
+        print(f'** Persisting cache file: {cache_file}...', end='')
         pickle.dump(cache, f)
-        printf('Done!')
+        print('Done!')
 
 # Google Geocoding API to convert an address into lat/long
 def get_lat_lng(address, api_key):
@@ -522,6 +535,11 @@ async def process_page(url, session, emails, visited, queue, debug):
                     if debug:
                         print(f'Found emails on {url}: {valid_emails}')
                 emails.update(valid_emails)
+                
+                #  # Parse the current URL to get the directory path
+                #  current_parsed = urlparse(url)
+                #  current_dir = posixpath.normpath(posixpath.dirname(current_parsed.path))
+                
                 # Find new URLs to crawl
                 soup = BeautifulSoup(html, 'html.parser')
                 base_domain = get_domain(url)
@@ -560,7 +578,7 @@ async def process_page(url, session, emails, visited, queue, debug):
                             emails.add(match.group(1))
                             if debug:
                                 print(f'Found email in href: {possible_email}')
-                            continue  # Skip to next link
+                        continue  # Skip to next link
 
                     # Parse the href
                     parsed_href = urlparse(href_unquoted)
@@ -592,6 +610,28 @@ async def process_page(url, session, emails, visited, queue, debug):
                         if debug:
                             print(f'Skipping external link: {href}')
                         continue  # Skip external links
+
+                    #  # Parse the new URL to get its path
+                    #  new_parsed = urlparse(href)
+                    #  new_path = posixpath.normpath(new_parsed.path)
+                    #
+                    #  # Check if the new path is not higher in the URL hierarchy
+                    #  # Remove trailing slashes
+                    #  current_dir_clean = current_dir.rstrip('/')
+                    #  new_path_clean = new_path.rstrip('/')
+                    #
+                    #  # Split into components
+                    #  current_components = current_dir_clean.strip('/').split('/')
+                    #  new_components = new_path_clean.strip('/').split('/')
+                    #
+                    #  # Check if new path is at the same level or deeper
+                    #  if (len(new_components) < len(current_components) or
+                    #      new_components[:len(current_components)] != current_components):
+                    #      if debug:
+                    #          print(f'Skipping higher-level or different path URL: {href}')
+                    #      continue  # Skip to next link
+
+                    # Now we can add the href to the queue
                     if any(keyword in href.lower() for keyword in URL_KEYWORDS):
                         if href not in visited:
                             if debug:

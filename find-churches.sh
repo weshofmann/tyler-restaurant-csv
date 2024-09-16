@@ -1,7 +1,7 @@
 #!/bin/bash
 
-RADIUS=5
-DISTANCE=2.5
+RADIUS=6
+DISTANCE=2
 BUSINESS_TYPE=church
 
 function divider() {
