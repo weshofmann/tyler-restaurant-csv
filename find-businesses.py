@@ -424,17 +424,12 @@ def should_exclude_url(url):
         bool: True if the URL should be excluded, False otherwise.
     """
     try:
-        parsed_url = urlparse(url)
-        domain = parsed_url.netloc.lower()
-        # Remove 'www.' prefix for consistency
-        if domain.startswith('www.'):
-            domain = domain[4:]
-
-        # filter out our domains
-        for excluded_domain in EXCLUDED_DOMAINS:
-            if domain.endswith(excluded_domain):
-                return True
-        return False
+        ext = tldextract.extract(url)
+        domain = f"{ext.domain}.{ext.suffix}".lower()
+        if domain in EXCLUDED_DOMAINS:
+            return True
+        else:
+            return False
     except Exception:
         return True  # Exclude URLs that cannot be parsed
 
