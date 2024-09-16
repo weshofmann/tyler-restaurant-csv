@@ -110,8 +110,11 @@ EXCLUDED_DOMAINS = {
     't.co',
     'bit.ly',
     'goo.gl',
+
     'toastmastersclubs.org',
     'support.toastmastersclubs.org',
+    '84thchurch.com',
+    'newsongpeople.com',
     'mailto',  # Although 'mailto' is handled separately, including it here reinforces the exclusion
     # Add any other domains you wish to exclude
 }
@@ -129,7 +132,9 @@ def load_cache(cache_file):
 
 def save_cache(cache, cache_file):
     with open(cache_file, 'wb') as f:
+        print(f'** Begin persisting cache file: {cache_file}...', end='')
         pickle.dump(cache, f)
+        printf('Done!')
 
 # Google Geocoding API to convert an address into lat/long
 def get_lat_lng(address, api_key):
@@ -248,7 +253,7 @@ def fetch_businesses_in_radius(location, api_key, radius, business_type):
     return businesses
 
 # Function to get detailed information for each business (with caching and response debugging)
-def get_place_details(cache, place_id, api_key, index, total):
+def get_place_details(cache, cache_file, place_id, api_key, index, total):
     # Check if the place is already cached
     if place_id in cache:
         print(f"[{index}/{total}] Using cached details for place_id: {place_id} ({cache[place_id]['name']})")
@@ -297,6 +302,9 @@ def get_place_details(cache, place_id, api_key, index, total):
             'website': website,
             'hours': hours
         }
+
+        # save our cache file
+        save_cache(cache, cache_file)
 
         return cache[place_id]
     else:
@@ -665,7 +673,7 @@ Example usage:
         place_id = place.get('place_id')
 
         # Get the detailed info (with caching and response debugging)
-        details = get_place_details(cache, place_id, api_key, index, total_businesses)
+        details = get_place_details(cache, cache_file, place_id, api_key, index, total_businesses)
 
         detailed_businesses.append(details)
 
