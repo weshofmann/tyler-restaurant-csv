@@ -277,7 +277,7 @@ def get_place_details(cache, place_id, api_key, index, total):
             emails = find_emails(website, DEBUG)  
             emails = normalize_emails(emails)    # This effectively removes duplicates
             emails = prioritize_emails(emails)
-            email = ';'.join(emails) if emails else 'N/A'
+            email = ';'.join(emails) if (emails and len(emails) > 0) else 'N/A'
             print(f'=> Found the following emails: \"{'; '.join(emails)}\"')
         else:
             email = 'N/A'
