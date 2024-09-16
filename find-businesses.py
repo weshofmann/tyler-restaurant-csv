@@ -18,7 +18,7 @@ DEFAULT_SEARCH_RADIUS = 5    # km
 DEFAULT_BUSINESS_TYPE = "restaurant"
 DEFAULT_CACHE_FILE = "places_cache.pkl"  # File to store cached place details
 
-SLEEP_TIME_SECS = 0.5
+SLEEP_TIME_SECS = 0.25
 EARTH_RADIUS_KM = 6371  # Approximate radius of Earth in kilometers
 
 EMAIL_PATTERN = r'(?i)(?<![\w\.-])([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})(?![\w\.-])'
