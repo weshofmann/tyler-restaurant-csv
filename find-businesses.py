@@ -21,6 +21,9 @@ DEFAULT_CACHE_FILE = "places_cache.pkl"  # File to store cached place details
 SLEEP_TIME_SECS = 0.5
 EARTH_RADIUS_KM = 6371  # Approximate radius of Earth in kilometers
 
+EMAIL_PATTERN = r'(?i)(?<![\w\.-])([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})(?![\w\.-])'
+
+
 # List of fast-food chains to exclude
 FAST_FOOD_CHAINS = [
   "mcdonald", 
@@ -224,7 +227,9 @@ def get_place_details(cache, place_id, api_key, index, total):
         # Try to extract email from the website if available
         if website != 'N/A':
             emails = extract_emails_from_website(website)
+            emails = list(dict.fromkeys(emails))    # This effectively removes duplicates
             email = ';'.join(emails) if emails else 'N/A'
+            print(f'Found the following emails: \"{email}\"')
         else:
             email = 'N/A'
 
@@ -250,7 +255,7 @@ def get_place_details(cache, place_id, api_key, index, total):
 # Function to extract email addresses from a website
 def extract_emails_from_website(url):
     # Regular expression to find email addresses (more strict)
-    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}\b'
+    email_pattern = EMAIL_PATTERN
 
     # List of common prefixes to prioritize
     priority_prefixes = ['info', 'contact', 'support', 'help', 'sales', 'admin']
@@ -338,9 +343,10 @@ def extract_emails_from_contact_page(contact_url):
     print(f"Extracting emails from contact page: {contact_url}")
     try:
         response = requests.get(contact_url, timeout=10)
+        time.sleep(SLEEP_TIME_SECS)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
-            email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+            email_pattern = EMAIL_PATTERN
             emails = re.findall(email_pattern, soup.get_text())
             return emails
         else:
