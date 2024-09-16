@@ -97,6 +97,33 @@ FAST_FOOD_CHAINS = [
   "dunkin",
 ]
 
+EXCLUDED_DOMAINS = {
+    'facebook.com',
+    'www.facebook.com',
+    'twitter.com',
+    'www.twitter.com',
+    'instagram.com',
+    'www.instagram.com',
+    'linkedin.com',
+    'www.linkedin.com',
+    'youtube.com',
+    'www.youtube.com',
+    'google.com',
+    'www.google.com',
+    'yahoo.com',
+    'www.yahoo.com',
+    'pinterest.com',
+    'www.pinterest.com',
+    'reddit.com',
+    'www.reddit.com',
+    't.co',
+    'bit.ly',
+    'goo.gl',
+    'mailto',  # Although 'mailto' is handled separately, including it here reinforces the exclusion
+    # Add any other domains you wish to exclude
+}
+
+
 # Rate limiter: 1 request per second (adjust as needed)
 rate_limiter = AsyncLimiter(max_rate=1, time_period=SLEEP_TIME_SECS)  # 1 request per 1 second
 
@@ -371,6 +398,29 @@ def filter_valid_emails(emails, debug=False):
             continue
     return valid_emails
 
+def should_exclude_url(url):
+    """
+    Determines if a URL should be excluded based on the domain.
+
+    Parameters:
+        url (str): The URL to check.
+
+    Returns:
+        bool: True if the URL should be excluded, False otherwise.
+    """
+    try:
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc.lower()
+        # Remove 'www.' prefix for consistency
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        if domain in EXCLUDED_DOMAINS:
+            return True
+        else:
+            return False
+    except Exception:
+        return True  # Exclude URLs that cannot be parsed
+
 async def find_emails(start_url, debug=False):
     emails = set()
     visited = set()
@@ -491,6 +541,12 @@ async def process_page(url, session, emails, visited, queue, debug):
                     if '@' in parsed_href.netloc:
                         if debug:
                             print(f"Skipping URL with '@' in netloc: {href_unquoted}")
+                        continue  # Skip to next link
+
+                    # Use the filtering function to exclude certain domains
+                    if should_exclude_url(href):
+                        if debug:
+                            print(f'Skipping excluded domain: {href}')
                         continue  # Skip to next link
 
                     # Handle protocol-relative URLs (starting with '//')
