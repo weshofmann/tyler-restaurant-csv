@@ -110,6 +110,8 @@ EXCLUDED_DOMAINS = {
     't.co',
     'bit.ly',
     'goo.gl',
+    'toastmastersclubs.org',
+    'support.toastmastersclubs.org',
     'mailto',  # Although 'mailto' is handled separately, including it here reinforces the exclusion
     # Add any other domains you wish to exclude
 }
@@ -467,18 +469,18 @@ async def worker(session, emails, visited, queue, debug):
         if url is None:
             queue.task_done()
             if debug:
-                print('Worker received termination signal.')
+                print('- Worker received termination signal.')
             break
         if url in visited:
             if debug:
-                print(f'Skipping already visited URL: {url}')
+                print(f'- Skipping already visited URL: {url}')
             queue.task_done()
             continue
         visited.add(url)
         if should_exclude_url(url):
-            print(f'Skipping excluded page: {url}')
+            print(f'- Skipping excluded page: {url}')
         else:
-          print(f'Processing page: {url}')
+          print(f'- Processing page: {url}')
           await process_page(url, session, emails, visited, queue, debug)
         queue.task_done()
 
