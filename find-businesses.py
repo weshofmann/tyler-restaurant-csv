@@ -250,7 +250,7 @@ def get_place_details(cache, place_id, api_key, index, total):
 # Function to extract email addresses from a website
 def extract_emails_from_website(url):
     # Regular expression to find email addresses (more strict)
-    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
+    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}\b'
 
     # List of common prefixes to prioritize
     priority_prefixes = ['info', 'contact', 'support', 'help', 'sales', 'admin']

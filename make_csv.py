@@ -4,31 +4,29 @@ import csv
 import pickle
 import os
 
-CACHE_FILE = "places_cache.pkl"  # File to store cached place details
-
-# Load cache
-def load_cache():
-    if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, 'rb') as f:
+# Load cache from the specified cache file
+def load_cache(cache_file):
+    if os.path.exists(cache_file):
+        with open(cache_file, 'rb') as f:
             return pickle.load(f)
     return {}
 
 # Write cache to CSV
-def cache_to_csv(output_file):
-    cache = load_cache()
+def cache_to_csv(output_file, cache_file):
+    cache = load_cache(cache_file)
     if not cache:
         print("Cache is empty. No data to export.")
         return
 
-    # Write the sorted restaurants to a CSV file
+    # Write the sorted businesses to a CSV file
     print(f"Writing data to CSV file: {output_file}")
-    restaurants = []
+    businesses = []
     for k in cache.keys():
-        restaurants.append(cache[k])
+        businesses.append(cache[k])
     with open(output_file, mode='w', newline='') as file:
         writer = csv.DictWriter(file, fieldnames=['name', 'address', 'phone', 'email', 'website', 'hours'])
         writer.writeheader()
-        writer.writerows(restaurants)
+        writer.writerows(businesses)
 
     print(f"Cache data written to {output_file} successfully!")
 
@@ -36,12 +34,18 @@ def cache_to_csv(output_file):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Export cached restaurant data to a CSV file.")
-    parser.add_argument('--output', '-o', type=str, default='restaurants_google.csv',
-                        help='Output CSV file (default: restaurants_google.csv)')
+    parser = argparse.ArgumentParser(description="Export cached business data to a CSV file.")
+    parser.add_argument('--output', '-o', type=str, help='Output CSV file (default: {business_type}_list.csv)')
+    parser.add_argument('--business-type', '-t', type=str, default='restaurant', 
+                        help='Type of business for the cache file (default: restaurant)')
 
     args = parser.parse_args()
-    cache_to_csv(args.output)
+
+    # Generate the cache file name and output CSV file name based on the business type
+    cache_file = f"places_cache.pkl.{args.business_type}"
+    output_file = args.output if args.output else f"{args.business_type}_list.csv"
+
+    cache_to_csv(output_file, cache_file)
 
 if __name__ == '__main__':
     main()

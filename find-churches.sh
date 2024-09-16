@@ -34,4 +34,4 @@ divider
 divider
 ./find-restaurants.py --search-center 'Norman, OK' -n 50 --bearing 0 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
 divider
-./make_csv.py
+./make_csv.py -t $BUSINESS_TYPE
