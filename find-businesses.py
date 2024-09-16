@@ -99,23 +99,14 @@ FAST_FOOD_CHAINS = [
 
 EXCLUDED_DOMAINS = {
     'facebook.com',
-    'www.facebook.com',
     'twitter.com',
-    'www.twitter.com',
     'instagram.com',
-    'www.instagram.com',
     'linkedin.com',
-    'www.linkedin.com',
     'youtube.com',
-    'www.youtube.com',
     'google.com',
-    'www.google.com',
     'yahoo.com',
-    'www.yahoo.com',
     'pinterest.com',
-    'www.pinterest.com',
     'reddit.com',
-    'www.reddit.com',
     't.co',
     'bit.ly',
     'goo.gl',
@@ -438,10 +429,12 @@ def should_exclude_url(url):
         # Remove 'www.' prefix for consistency
         if domain.startswith('www.'):
             domain = domain[4:]
-        if domain in EXCLUDED_DOMAINS:
-            return True
-        else:
-            return False
+
+        # filter out our domains
+        for excluded_domain in EXCLUDED_DOMAINS:
+            if domain.endswith(excluded_domain):
+                return True
+        return False
     except Exception:
         return True  # Exclude URLs that cannot be parsed
 
