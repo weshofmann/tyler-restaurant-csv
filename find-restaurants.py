@@ -15,6 +15,7 @@ DEFAULT_CENTER        = 'Mustang, OK'
 DEFAULT_BEARING       = 45   # degrees  (North = 0, East = 90, South = 180, West = 270)
 DEFAULT_DISTANCE      = 2.5  # km
 DEFAULT_SEARCH_RADIUS = 5    # km
+DEFAULT_BUSINESS_TYPE = "restaurant"
 
 SLEEP_TIME_SECS = 0.5
 CACHE_FILE = "places_cache.pkl"  # File to store cached place details
@@ -117,7 +118,7 @@ def move_center(lat, lng, distance_km, bearing_angle):
     return new_lat, new_lng
 
 # Function to get restaurants from Google Places API, filtering fast food and shifting center as needed
-def get_restaurants(location, api_key, num_results, distance_km, bearing_angle, search_radius_km):
+def get_restaurants(location, api_key, business_type, num_results, distance_km, bearing_angle, search_radius_km):
     all_restaurants = []
     visited_place_ids = set()
     radius = search_radius_km * 1000  # Convert search radius to meters
@@ -127,7 +128,7 @@ def get_restaurants(location, api_key, num_results, distance_km, bearing_angle, 
         print(f"\n=== Searching at lat={lat}, lng={lng} ===")
         
         # Fetch restaurants for the current location
-        restaurants = fetch_restaurants_in_radius((lat, lng), api_key, radius)
+        restaurants = fetch_restaurants_in_radius((lat, lng), api_key, radius, business_type)
         if not restaurants:
             print(f"No more restaurants found in radius: {radius} meters. Shifting center.")
         
@@ -159,13 +160,13 @@ def get_restaurants(location, api_key, num_results, distance_km, bearing_angle, 
     return all_restaurants[:num_results]
 
 # Helper function to fetch restaurants within a specified radius, pulling all available pages
-def fetch_restaurants_in_radius(location, api_key, radius):
+def fetch_restaurants_in_radius(location, api_key, radius, business_type):
     restaurants = []
     url = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
     params = {
         'location': f"{location[0]},{location[1]}",  # Latitude, Longitude
         'radius': radius,  # Use radius instead of rankby=distance for finer control
-        'type': 'restaurant',
+        'type': business_type,
         'key': api_key
     }
 
@@ -383,6 +384,8 @@ Example usage:
                         help='Output CSV file (default: restaurants_google.csv)')
     parser.add_argument('--api-key', '-a', type=str,
                         help='Google API Key. If not provided, the environment variable GOOGLE_API_KEY will be used.')
+    parser.add_argument('--business-type', '-t', type=str, default=DEFAULT_BUSINESS_TYPE,
+                        help=f'The type of business to search for (default: {DEFAULT_BUSINESS_TYPE}')
     args = parser.parse_args()
 
     # Check if the API key is provided via the command line or environment variable
@@ -402,7 +405,7 @@ Example usage:
         return
 
     # Get the list of restaurants (handling pagination)
-    restaurants = get_restaurants(location, api_key, args.number, args.distance, args.bearing, args.search_radius)
+    restaurants = get_restaurants(location, api_key, args.business_type, args.number, args.distance, args.bearing, args.search_radius)
 
     # Calculate distance and get details for each restaurant
     detailed_restaurants = []
