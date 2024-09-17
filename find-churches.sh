@@ -26,9 +26,9 @@ divider
 divider
 ./find_businesses.py --search-center '10145 Northwest Expy, Yukon, OK 73099' -n 50 --bearing 75 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
 divider
-./find_businesses.py --search-center 'Edmond, OK' -n 300 --bearing 225 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
+./find_businesses.py --search-center 'Edmond, OK' -n 250 --bearing 225 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
 divider
-./find_businesses.py --search-center 'Yukon, OK' -n 300 --bearing 100 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
+./find_businesses.py --search-center 'Yukon, OK' -n 250 --bearing 100 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
 divider
 ./find_businesses.py --search-center 'Oklahoma City, OK' -n 250 --bearing 170 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
 divider

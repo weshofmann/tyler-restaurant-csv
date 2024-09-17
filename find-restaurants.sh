@@ -17,12 +17,12 @@ function divider() {
 # divider
 # ./find_businesses.py --search-center 'Midwest City, OK' -n 200 --bearing 270 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
 # divider
-./find_businesses.py --search-center 'The Village, OK' -n 300 --bearing 165 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
-divider
-./find_businesses.py --search-center 'Quail Springs Mall, OK' -n 150 --bearing 165 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
-divider
-./find_businesses.py --search-center 'Scissortail Park, OK' -n 150 --bearing 315 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
-divider
+# ./find_businesses.py --search-center 'The Village, OK' -n 300 --bearing 165 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
+# divider
+# ./find_businesses.py --search-center 'Quail Springs Mall, OK' -n 150 --bearing 165 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
+# divider
+# ./find_businesses.py --search-center 'Scissortail Park, OK' -n 150 --bearing 315 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
+# divider
 ./find_businesses.py --search-center 'Moore, OK' -n 175 --bearing 0 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE
 divider
 ./find_businesses.py --search-center 'Edmond, OK' -n 150 --bearing 225 --search-radius $RADIUS -d $DISTANCE -t $BUSINESS_TYPE

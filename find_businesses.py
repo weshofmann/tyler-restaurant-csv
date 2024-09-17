@@ -111,7 +111,14 @@ EXCLUDED_DOMAINS = {
     't.co',
     'bit.ly',
     'goo.gl',
+    'wordpress.com',
 
+# These are restaurants which break our web-scraper.
+    'blazepizza.com',
+    'chick-fil-a.com',
+    'hooters.com',
+    'dennys.com',
+    'outback.com',
     'chuckecheese.com',
     'churchs.com',
     'bywoops.com',
@@ -121,7 +128,12 @@ EXCLUDED_DOMAINS = {
     'dairyqueen.com',
     'einsteinbros.com',
     'tropicalsmoothiecafe.com',
+    'deltaco.com',
+    'quiktrip.com',
+    'itsjustwings.com',
+    'smoothieking.com',
 
+# These are churches which break our web-scraper
     'mustangchurch.com',
     'blanchardchurchofchrist.org',
     'toastmastersclubs.org',
@@ -536,10 +548,6 @@ async def process_page(url, session, emails, visited, queue, debug):
                         print(f'Found emails on {url}: {valid_emails}')
                 emails.update(valid_emails)
                 
-                #  # Parse the current URL to get the directory path
-                #  current_parsed = urlparse(url)
-                #  current_dir = posixpath.normpath(posixpath.dirname(current_parsed.path))
-                
                 # Find new URLs to crawl
                 soup = BeautifulSoup(html, 'html.parser')
                 base_domain = get_domain(url)
@@ -549,12 +557,6 @@ async def process_page(url, session, emails, visited, queue, debug):
 
                     # Unquote the href to handle URL-encoded characters
                     href_unquoted = unquote(href)
-                    
-                    # Use the filtering function to exclude certain domains
-                    if should_exclude_url(href):
-                        if debug:
-                            print(f'Skipping excluded domain: {href}')
-                        continue  # Skip to next link
 
                     # Handle mailto links
                     if href_unquoted.startswith('mailto:'):
@@ -580,17 +582,17 @@ async def process_page(url, session, emails, visited, queue, debug):
                                 print(f'Found email in href: {possible_email}')
                         continue  # Skip to next link
 
-                    # Parse the href
-                    parsed_href = urlparse(href_unquoted)
+                    # Parse the href_unquoted to get initial components
+                    parsed_href_unquoted = urlparse(href_unquoted)
 
                     # Skip non-http(s) links (e.g., 'javascript:', 'tel:')
-                    if parsed_href.scheme and parsed_href.scheme not in ('http', 'https'):
+                    if parsed_href_unquoted.scheme and parsed_href_unquoted.scheme not in ('http', 'https'):
                         if debug:
                             print(f'Skipping non-http(s) link: {href_unquoted}')
                         continue  # Skip to next link
 
                     # Skip URLs with '@' in netloc (likely an email address misinterpreted)
-                    if '@' in parsed_href.netloc:
+                    if '@' in parsed_href_unquoted.netloc:
                         if debug:
                             print(f"Skipping URL with '@' in netloc: {href_unquoted}")
                         continue  # Skip to next link
@@ -599,10 +601,19 @@ async def process_page(url, session, emails, visited, queue, debug):
                     if href_unquoted.startswith('//'):
                         href = 'http:' + href_unquoted
                     # Convert relative URLs to absolute URLs
-                    elif not parsed_href.scheme:
+                    elif not parsed_href_unquoted.scheme:
                         href = urljoin(url, href_unquoted)
                     else:
                         href = href_unquoted
+
+                    # Now parse href to get its components
+                    parsed_href = urlparse(href)
+
+                    # Use the filtering function to exclude certain domains
+                    if should_exclude_url(href):
+                        if debug:
+                            print(f'Skipping excluded domain: {href}')
+                        continue  # Skip to next link
 
                     # Now process the URL
                     link_domain = get_domain(href)
@@ -611,25 +622,11 @@ async def process_page(url, session, emails, visited, queue, debug):
                             print(f'Skipping external link: {href}')
                         continue  # Skip external links
 
-                    #  # Parse the new URL to get its path
-                    #  new_parsed = urlparse(href)
-                    #  new_path = posixpath.normpath(new_parsed.path)
-                    #
-                    #  # Check if the new path is not higher in the URL hierarchy
-                    #  # Remove trailing slashes
-                    #  current_dir_clean = current_dir.rstrip('/')
-                    #  new_path_clean = new_path.rstrip('/')
-                    #
-                    #  # Split into components
-                    #  current_components = current_dir_clean.strip('/').split('/')
-                    #  new_components = new_path_clean.strip('/').split('/')
-                    #
-                    #  # Check if new path is at the same level or deeper
-                    #  if (len(new_components) < len(current_components) or
-                    #      new_components[:len(current_components)] != current_components):
-                    #      if debug:
-                    #          print(f'Skipping higher-level or different path URL: {href}')
-                    #      continue  # Skip to next link
+                    # **Check if 'locations' is in the path**
+                    if 'location' in parsed_href.path.lower():
+                        if debug:
+                            print(f"Skipping URL with 'location' in path: {href}")
+                        continue  # Skip to next link
 
                     # Now we can add the href to the queue
                     if any(keyword in href.lower() for keyword in URL_KEYWORDS):
